@@ -1405,6 +1405,110 @@ async function fallbackProfile(platform: string, username: string): Promise<Prof
   return null;
 }
 
+// ─── Facebook: coleta das publicações do feed ───────────────────
+// O actor de páginas (apify~facebook-pages-scraper) devolve apenas dados
+// institucionais da página — nenhuma publicação. Por isso rodamos SEMPRE
+// uma segunda coleta com o scraper de posts e preenchemos com ela os posts
+// recentes, médias de likes/comentários/views e a taxa de engajamento.
+const FACEBOOK_POST_ACTORS = [
+  "apify~facebook-posts-scraper",
+  "apify~facebook-reels-scraper",
+];
+
+function mapFacebookPost(v: A) {
+  return {
+    text: firstText(v, ["text", "message", "postText", "description", "caption", "content"]) ||
+      firstText(v.content, ["text", "message", "caption", "description"]),
+    likes: nestedMetricNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]),
+    comments: nestedMetricNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
+    views: nestedMetricNum(v, ["views", "viewCount", "plays", "playsCount", "videoViewCount"]),
+    date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]) ||
+      firstText(v.publishedAt, ["iso", "date", "text"]),
+    url: objectUrl(v),
+    mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) ||
+      firstText(v.media?.[0], ["url", "thumbnail", "thumbnailUrl"]) ||
+      firstText(v.media, ["url", "thumbnailUrl"]),
+  };
+}
+
+async function collectFacebookPosts(
+  token: string,
+  pageUrl: string,
+): Promise<A[]> {
+  const found: A[] = [];
+  for (const actorId of FACEBOOK_POST_ACTORS) {
+    try {
+      const raw = await runActor(
+        token,
+        actorId,
+        { startUrls: [{ url: pageUrl }], resultsLimit: 10, proxyConfiguration: { useApifyProxy: true } },
+        90,
+      );
+      const arrays = collectArraysByKey(raw, ["posts", "latestPosts", "timelinePosts", "items", "reels", "data", "results"]);
+      const candidates = uniquePosts([...arr(raw), ...arrays.flat()])
+        .filter((x: A) => looksLikeFacebookPost(x, pageUrl));
+      console.info(`[social-analytics][facebook] ${actorId} -> ${candidates.length} posts`);
+      found.push(...candidates);
+      if (found.length >= 6) break;
+    } catch (err) {
+      console.warn(`[social-analytics][facebook] ${actorId} falhou:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return uniquePosts(found);
+}
+
+/**
+ * Preenche posts/médias/engajamento do Facebook. Nunca zera dados já
+ * existentes: se a coleta voltar vazia, o perfil segue como estava.
+ */
+async function applyFacebookPosts(
+  token: string,
+  profile: ProfileAnalytics,
+  username: string,
+): Promise<void> {
+  if (profile.recentPosts?.length) return;
+  const pageUrl = normalizeFacebookUrl(username || profile.username || "");
+  if (!pageUrl) return;
+
+  const posts = await collectFacebookPosts(token, pageUrl);
+  if (!posts.length) {
+    console.warn("[social-analytics][facebook] nenhuma publicação pública coletada para", pageUrl);
+    return;
+  }
+
+  const mapped = posts.map(mapFacebookPost);
+  const cnt = mapped.length;
+  const totalLikes = mapped.reduce((s, p) => s + p.likes, 0);
+  const totalComments = mapped.reduce((s, p) => s + p.comments, 0);
+  const totalViews = mapped.reduce((s, p) => s + p.views, 0);
+  const totalShares = posts.reduce(
+    (s: number, v: A) => s + nestedMetricNum(v, ["shares", "sharesCount", "shareCount", "reshare_count"]),
+    0,
+  );
+
+  profile.recentPosts = mapped.slice(0, 6);
+  profile.avgLikes = Math.round(totalLikes / cnt);
+  profile.avgComments = Math.round(totalComments / cnt);
+  profile.avgViews = totalViews > 0 ? Math.round(totalViews / cnt) : profile.avgViews;
+  profile.posts = profile.posts || cnt;
+  profile.engagementRate = engagementRateFrom(
+    profile.followers,
+    profile.avgLikes,
+    profile.avgComments,
+    Math.round(totalShares / cnt),
+  ) ?? profile.engagementRate;
+
+  console.info("[social-analytics][facebook] posts aplicados", {
+    pageUrl,
+    postsFound: cnt,
+    avgLikes: profile.avgLikes,
+    avgComments: profile.avgComments,
+    engagementRate: profile.engagementRate,
+  });
+}
+
+
+
 // ─── Apify Runner ───────────────────────────────────────────────
 
 async function runActor(
