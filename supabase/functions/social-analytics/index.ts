@@ -740,11 +740,13 @@ const PLATFORMS: Record<string, ActorConfig> = {
         displayName: firstText(p, ["title", "name", "pageName"]) || firstText(profile, ["name", "title"]),
         profileImageUrl: firstText(profile, ["profilePicLarge", "profilePicMedium", "profilePic", "imageUrl"]) || firstText(p, ["profileImage", "imageUrl", "logo", "avatar", "pageImage", "profilePhoto"]),
         // Facebook: usamos `followers` como métrica principal; se o actor só
-        // devolveu `likes` (curtidas da página) e não seguidores, caímos nele.
+        // devolveu `likes` (curtidas da página), sinalizamos a origem para a UI.
         followers: followers || pageLikes,
+        followersSource: followers > 0 ? "followers" : "page_likes",
         following: 0,
         posts: safeNum(p.postsCollected || p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
         engagementRate: engagementRateFrom(followers || pageLikes, avgL, avgC, avgS),
+
         avgLikes: avgL,
         avgComments: avgC,
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
