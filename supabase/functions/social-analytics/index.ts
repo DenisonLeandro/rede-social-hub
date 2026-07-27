@@ -697,16 +697,17 @@ const PLATFORMS: Record<string, ActorConfig> = {
       // O apify~facebook-pages-scraper expõe `likes` (curtidas da página) e
       // `followers`. Alguns retornos usam `followersAmountForBio` /
       // `likesAmountForBio`. Consideramos ambos para robustez.
+      // Seguidores REAIS (sem cair em curtidas da página).
       const followers = safeNum(
         p.followers || p.followersCount || p.followerCount || p.followers_count ||
         p.followersAmountForBio || p.followersText ||
-        profile.followersCount || profile.followers || profile.followerCount ||
-        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio ||
-        p.fans || p.fanCount || profile.friends || 0
+        profile.followersCount || profile.followers || profile.followerCount || 0
       );
       const pageLikes = safeNum(
-        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio || 0
+        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio ||
+        p.fans || p.fanCount || 0
       );
+
 
       const postArrays = collectArraysByKey(raw, ["posts", "latestPosts", "timelinePosts", "items", "reels", "data", "results"]);
       const posts = uniquePosts([
