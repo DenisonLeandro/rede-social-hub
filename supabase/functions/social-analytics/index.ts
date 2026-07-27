@@ -119,7 +119,10 @@ interface ProfileAnalytics {
     mediaUrl: string;
   }[];
   enrichment?: EnrichmentData;
+  /** "page_likes" quando o número exibido em `followers` é, na verdade, curtidas da página. */
+  followersSource?: "followers" | "page_likes";
   fetchedAt: string;
+
 }
 
 // deno-lint-ignore no-explicit-any
