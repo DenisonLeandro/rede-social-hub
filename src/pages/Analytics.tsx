@@ -1625,7 +1625,7 @@ export default function Analytics() {
                         {/* Stats */}
                         <div className="grid grid-cols-3 gap-2 text-center text-xs">
                           {[
-                            { label: "Seguidores", value: formatNum(profile.followers) },
+                            { label: profile.followersSource === "page_likes" ? "Curtidas" : "Seguidores", value: formatNum(profile.followers) },
                             { label: "Seguindo", value: formatNum(profile.following) },
                             { label: "Posts", value: formatNum(profile.posts) },
                             { label: "Eng.", value: profile.engagementRate != null ? `${profile.engagementRate.toFixed(1)}%` : "—" },
