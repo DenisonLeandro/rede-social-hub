@@ -120,7 +120,10 @@ export interface ProfileAnalytics {
     mediaUrl: string;
   }[];
   enrichment?: EnrichmentData;
+  /** "page_likes" quando o número em `followers` é, na verdade, curtidas da página (Facebook). */
+  followersSource?: "followers" | "page_likes";
   fetchedAt: string;
+
 }
 
 export interface AnalyticsResult {
