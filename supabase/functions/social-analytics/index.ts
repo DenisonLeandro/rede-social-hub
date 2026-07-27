@@ -119,7 +119,10 @@ interface ProfileAnalytics {
     mediaUrl: string;
   }[];
   enrichment?: EnrichmentData;
+  /** "page_likes" quando o número exibido em `followers` é, na verdade, curtidas da página. */
+  followersSource?: "followers" | "page_likes";
   fetchedAt: string;
+
 }
 
 // deno-lint-ignore no-explicit-any
@@ -694,16 +697,17 @@ const PLATFORMS: Record<string, ActorConfig> = {
       // O apify~facebook-pages-scraper expõe `likes` (curtidas da página) e
       // `followers`. Alguns retornos usam `followersAmountForBio` /
       // `likesAmountForBio`. Consideramos ambos para robustez.
+      // Seguidores REAIS (sem cair em curtidas da página).
       const followers = safeNum(
         p.followers || p.followersCount || p.followerCount || p.followers_count ||
         p.followersAmountForBio || p.followersText ||
-        profile.followersCount || profile.followers || profile.followerCount ||
-        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio ||
-        p.fans || p.fanCount || profile.friends || 0
+        profile.followersCount || profile.followers || profile.followerCount || 0
       );
       const pageLikes = safeNum(
-        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio || 0
+        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio ||
+        p.fans || p.fanCount || 0
       );
+
 
       const postArrays = collectArraysByKey(raw, ["posts", "latestPosts", "timelinePosts", "items", "reels", "data", "results"]);
       const posts = uniquePosts([
@@ -736,11 +740,13 @@ const PLATFORMS: Record<string, ActorConfig> = {
         displayName: firstText(p, ["title", "name", "pageName"]) || firstText(profile, ["name", "title"]),
         profileImageUrl: firstText(profile, ["profilePicLarge", "profilePicMedium", "profilePic", "imageUrl"]) || firstText(p, ["profileImage", "imageUrl", "logo", "avatar", "pageImage", "profilePhoto"]),
         // Facebook: usamos `followers` como métrica principal; se o actor só
-        // devolveu `likes` (curtidas da página) e não seguidores, caímos nele.
+        // devolveu `likes` (curtidas da página), sinalizamos a origem para a UI.
         followers: followers || pageLikes,
+        followersSource: followers > 0 ? "followers" : "page_likes",
         following: 0,
         posts: safeNum(p.postsCollected || p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
         engagementRate: engagementRateFrom(followers || pageLikes, avgL, avgC, avgS),
+
         avgLikes: avgL,
         avgComments: avgC,
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
@@ -1399,6 +1405,110 @@ async function fallbackProfile(platform: string, username: string): Promise<Prof
   return null;
 }
 
+// ─── Facebook: coleta das publicações do feed ───────────────────
+// O actor de páginas (apify~facebook-pages-scraper) devolve apenas dados
+// institucionais da página — nenhuma publicação. Por isso rodamos SEMPRE
+// uma segunda coleta com o scraper de posts e preenchemos com ela os posts
+// recentes, médias de likes/comentários/views e a taxa de engajamento.
+const FACEBOOK_POST_ACTORS = [
+  "apify~facebook-posts-scraper",
+  "apify~facebook-reels-scraper",
+];
+
+function mapFacebookPost(v: A) {
+  return {
+    text: firstText(v, ["text", "message", "postText", "description", "caption", "content"]) ||
+      firstText(v.content, ["text", "message", "caption", "description"]),
+    likes: nestedMetricNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]),
+    comments: nestedMetricNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
+    views: nestedMetricNum(v, ["views", "viewCount", "plays", "playsCount", "videoViewCount"]),
+    date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]) ||
+      firstText(v.publishedAt, ["iso", "date", "text"]),
+    url: objectUrl(v),
+    mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) ||
+      firstText(v.media?.[0], ["url", "thumbnail", "thumbnailUrl"]) ||
+      firstText(v.media, ["url", "thumbnailUrl"]),
+  };
+}
+
+async function collectFacebookPosts(
+  token: string,
+  pageUrl: string,
+): Promise<A[]> {
+  const found: A[] = [];
+  for (const actorId of FACEBOOK_POST_ACTORS) {
+    try {
+      const raw = await runActor(
+        token,
+        actorId,
+        { startUrls: [{ url: pageUrl }], resultsLimit: 10, proxyConfiguration: { useApifyProxy: true } },
+        90,
+      );
+      const arrays = collectArraysByKey(raw, ["posts", "latestPosts", "timelinePosts", "items", "reels", "data", "results"]);
+      const candidates = uniquePosts([...arr(raw), ...arrays.flat()])
+        .filter((x: A) => looksLikeFacebookPost(x, pageUrl));
+      console.info(`[social-analytics][facebook] ${actorId} -> ${candidates.length} posts`);
+      found.push(...candidates);
+      if (found.length >= 6) break;
+    } catch (err) {
+      console.warn(`[social-analytics][facebook] ${actorId} falhou:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return uniquePosts(found);
+}
+
+/**
+ * Preenche posts/médias/engajamento do Facebook. Nunca zera dados já
+ * existentes: se a coleta voltar vazia, o perfil segue como estava.
+ */
+async function applyFacebookPosts(
+  token: string,
+  profile: ProfileAnalytics,
+  username: string,
+): Promise<void> {
+  if (profile.recentPosts?.length) return;
+  const pageUrl = normalizeFacebookUrl(username || profile.username || "");
+  if (!pageUrl) return;
+
+  const posts = await collectFacebookPosts(token, pageUrl);
+  if (!posts.length) {
+    console.warn("[social-analytics][facebook] nenhuma publicação pública coletada para", pageUrl);
+    return;
+  }
+
+  const mapped = posts.map(mapFacebookPost);
+  const cnt = mapped.length;
+  const totalLikes = mapped.reduce((s, p) => s + p.likes, 0);
+  const totalComments = mapped.reduce((s, p) => s + p.comments, 0);
+  const totalViews = mapped.reduce((s, p) => s + p.views, 0);
+  const totalShares = posts.reduce(
+    (s: number, v: A) => s + nestedMetricNum(v, ["shares", "sharesCount", "shareCount", "reshare_count"]),
+    0,
+  );
+
+  profile.recentPosts = mapped.slice(0, 6);
+  profile.avgLikes = Math.round(totalLikes / cnt);
+  profile.avgComments = Math.round(totalComments / cnt);
+  profile.avgViews = totalViews > 0 ? Math.round(totalViews / cnt) : profile.avgViews;
+  profile.posts = profile.posts || cnt;
+  profile.engagementRate = engagementRateFrom(
+    profile.followers,
+    profile.avgLikes,
+    profile.avgComments,
+    Math.round(totalShares / cnt),
+  ) ?? profile.engagementRate;
+
+  console.info("[social-analytics][facebook] posts aplicados", {
+    pageUrl,
+    postsFound: cnt,
+    avgLikes: profile.avgLikes,
+    avgComments: profile.avgComments,
+    engagementRate: profile.engagementRate,
+  });
+}
+
+
+
 // ─── Apify Runner ───────────────────────────────────────────────
 
 async function runActor(
@@ -1529,7 +1639,12 @@ Deno.serve(async (req: Request) => {
           const normalized = config.normalize(data);
           if (!normalized.username) normalized.username = username;
 
+          if (resolvedPlatform === "facebook") {
+            await applyFacebookPosts(apifyToken, normalized, username);
+          }
+
           if ((platform === "youtube" || platform === "tiktok") && !(normalized.recentPosts?.length)) {
+
             const fallback = await fallbackProfile(platform, username);
             if (fallback && (fallback.recentPosts?.length || fallback.followers > 0 || fallback.posts > 0)) {
               normalized.recentPosts = fallback.recentPosts?.length ? fallback.recentPosts : normalized.recentPosts;

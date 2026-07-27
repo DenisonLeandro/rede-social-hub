@@ -1532,7 +1532,7 @@ export default function Analytics() {
                         {/* Stats row */}
                         <div className="grid grid-cols-3 gap-1.5 text-center">
                           <div className="rounded-lg bg-muted/40 p-1.5">
-                            <p className="text-[9px] text-muted-foreground">Seguidores</p>
+                            <p className="text-[9px] text-muted-foreground">{profile.followersSource === "page_likes" ? "Curtidas" : "Seguidores"}</p>
                             <p className="font-bold text-xs">{formatNum(profile.followers)}</p>
                           </div>
                           <div className="rounded-lg bg-muted/40 p-1.5">
@@ -1625,7 +1625,7 @@ export default function Analytics() {
                         {/* Stats */}
                         <div className="grid grid-cols-3 gap-2 text-center text-xs">
                           {[
-                            { label: "Seguidores", value: formatNum(profile.followers) },
+                            { label: profile.followersSource === "page_likes" ? "Curtidas" : "Seguidores", value: formatNum(profile.followers) },
                             { label: "Seguindo", value: formatNum(profile.following) },
                             { label: "Posts", value: formatNum(profile.posts) },
                             { label: "Eng.", value: profile.engagementRate != null ? `${profile.engagementRate.toFixed(1)}%` : "—" },
