@@ -1639,7 +1639,12 @@ Deno.serve(async (req: Request) => {
           const normalized = config.normalize(data);
           if (!normalized.username) normalized.username = username;
 
+          if (resolvedPlatform === "facebook") {
+            await applyFacebookPosts(apifyToken, normalized, username);
+          }
+
           if ((platform === "youtube" || platform === "tiktok") && !(normalized.recentPosts?.length)) {
+
             const fallback = await fallbackProfile(platform, username);
             if (fallback && (fallback.recentPosts?.length || fallback.followers > 0 || fallback.posts > 0)) {
               normalized.recentPosts = fallback.recentPosts?.length ? fallback.recentPosts : normalized.recentPosts;
