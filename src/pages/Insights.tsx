@@ -27,6 +27,10 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useCompany } from "@/contexts/CompanyContext";
+import { companyStorage } from "@/lib/companyStorage";
+import { DownloadReportButton } from "@/components/analytics/DownloadReportButton";
+import type { ReportProfile, ReportInsights } from "@/components/analytics/AnalyticsReportDocument";
+
 
 import { PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
