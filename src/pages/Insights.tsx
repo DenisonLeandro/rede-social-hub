@@ -278,17 +278,51 @@ export default function Insights() {
     "Crie um plano de ação com 5 melhorias baseado nos meus dados reais",
   ];
 
+  // Dados para o relatório em PDF (mesmas métricas exibidas nesta página)
+  const reportProfiles: ReportProfile[] = useMemo(
+    () => snapshots.map((s) => ({
+      platform: s.platform,
+      username: s.username,
+      displayName: s.display_name ?? undefined,
+      followers: s.followers,
+      following: s.following,
+      posts: s.posts_count,
+      engagementRate: s.engagement_rate,
+      avgLikes: s.avg_likes,
+      avgComments: s.avg_comments,
+      avgViews: s.avg_views,
+      recentPosts: Array.isArray(s.recent_posts)
+        ? (s.recent_posts as ReportProfile["recentPosts"])
+        : [],
+    })),
+    [snapshots]
+  );
+  const reportInsights: ReportInsights = useMemo(() => {
+    try {
+      const saved = companyStorage.get(activeCompanyId, "structured_insights");
+      return saved ? (JSON.parse(saved) as ReportInsights) : {};
+    } catch { return {}; }
+  }, [activeCompanyId]);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Lightbulb className="h-6 w-6 text-yellow-500" />
-          Insights IA
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          Insights calculados a partir dos seus dados reais — {allPosts.length} posts analisados
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <Lightbulb className="h-6 w-6 text-yellow-500" />
+            Insights IA
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Insights calculados a partir dos seus dados reais — {allPosts.length} posts analisados
+          </p>
+        </div>
+        <DownloadReportButton
+          profiles={reportProfiles}
+          insights={reportInsights}
+          aiAnswer={aiResponse || undefined}
+        />
       </div>
+
 
       {/* No data state */}
       {!hasData && !snapshotsQuery.isLoading && (
