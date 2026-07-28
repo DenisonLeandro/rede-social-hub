@@ -340,9 +340,10 @@ export function AnalyticsReportDocument({ data }: { data: ReportData }) {
                   </div>
                   {posts.map((post, i) => (
                     <div key={i} style={{ marginTop: 6 }}>
-                      <div style={{ maxHeight: 34, overflow: "hidden" }}>
-                        {(post.text || "(sem legenda)").slice(0, 180)}
+                      <div>
+                        {truncate(post.text || "(sem legenda)", 170)}
                       </div>
+
                       <div style={{ color: C.muted, fontSize: 10 }}>
                         {post.date ? new Date(post.date).toLocaleDateString("pt-BR") : "—"} ·{" "}
                         {num(post.likes)} likes · {num(post.comments)} comentários
