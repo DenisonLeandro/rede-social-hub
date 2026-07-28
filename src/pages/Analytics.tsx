@@ -45,6 +45,9 @@ import type { ProfileAnalytics } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { userStorage } from "@/lib/storage";
 import { companyStorage } from "@/lib/companyStorage";
+import { DownloadReportButton } from "@/components/analytics/DownloadReportButton";
+import type { ReportProfile, ReportInsights } from "@/components/analytics/AnalyticsReportDocument";
+
 
 import {
   BarChart,
@@ -809,6 +812,11 @@ export default function Analytics() {
             {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Atualizar Dados
           </Button>
+          <DownloadReportButton
+            profiles={analytics as unknown as ReportProfile[]}
+            insights={structuredInsights as unknown as ReportInsights}
+          />
+
           <Button
             onClick={handleFetchInsights}
             disabled={isFetchingInsights || !hasData}
