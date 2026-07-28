@@ -92,6 +92,27 @@ const PLATFORM_LABEL: Record<string, string> = {
 
 const label = (p: string) => PLATFORM_LABEL[p] ?? (p.charAt(0).toUpperCase() + p.slice(1));
 
+function truncate(text: string, max: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length > max ? `${clean.slice(0, max).trimEnd()}…` : clean;
+}
+
+/** Score de completude para escolher o melhor snapshot quando há duplicatas. */
+function richness(p: ReportProfile): number {
+  return (p.followers ?? 0) + (p.posts ?? 0) * 10 + (p.recentPosts?.length ?? 0) * 100 +
+    (p.engagementRate ? 1000 : 0);
+}
+
+function dedupeProfiles(profiles: ReportProfile[]): ReportProfile[] {
+  const byPlatform = new Map<string, ReportProfile>();
+  for (const p of profiles) {
+    const cur = byPlatform.get(p.platform);
+    if (!cur || richness(p) > richness(cur)) byPlatform.set(p.platform, p);
+  }
+  return [...byPlatform.values()];
+}
+
+
 function num(v?: number | null): string {
   if (v == null || Number.isNaN(v)) return "—";
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
