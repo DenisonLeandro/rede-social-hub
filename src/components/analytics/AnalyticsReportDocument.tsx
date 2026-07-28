@@ -140,7 +140,10 @@ function Kv({ k, v, color = C.text }: { k: string; v: string; color?: string }) 
 }
 
 export function AnalyticsReportDocument({ data }: { data: ReportData }) {
-  const { companyName, generatedAt, profiles, insights, aiAnswer } = data;
+  const { companyName, generatedAt, insights, aiAnswer } = data;
+  // Dedupe: a mesma plataforma pode ter snapshots com handle e URL; mantém o mais completo.
+  const profiles = dedupeProfiles(data.profiles);
+
   const totalFollowers = profiles.reduce((s, p) => s + (p.followers ?? 0), 0);
   const withRate = profiles.filter((p) => p.engagementRate != null);
   const avgEng = withRate.length
