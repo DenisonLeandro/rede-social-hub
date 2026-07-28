@@ -809,6 +809,11 @@ export default function Analytics() {
             {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Atualizar Dados
           </Button>
+          <DownloadReportButton
+            profiles={analytics as unknown as ReportProfile[]}
+            insights={structuredInsights as unknown as ReportInsights}
+          />
+
           <Button
             onClick={handleFetchInsights}
             disabled={isFetchingInsights || !hasData}
