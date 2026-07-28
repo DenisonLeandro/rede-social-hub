@@ -97,6 +97,15 @@ function truncate(text: string, max: number): string {
   return clean.length > max ? `${clean.slice(0, max).trimEnd()}…` : clean;
 }
 
+/** Extrai o handle legível a partir de um username ou URL de perfil. */
+function handle(value: string): string {
+  const raw = (value || "").trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(raw)) return raw.replace(/^@/, "");
+  const parts = raw.split("?")[0].split("/").filter(Boolean);
+  return (parts.find((p) => p.startsWith("@")) || parts[parts.length - 1] || raw).replace(/^@/, "");
+}
+
+
 /** Score de completude para escolher o melhor snapshot quando há duplicatas. */
 function richness(p: ReportProfile): number {
   return (p.followers ?? 0) + (p.posts ?? 0) * 10 + (p.recentPosts?.length ?? 0) * 100 +
