@@ -45,6 +45,9 @@ import type { ProfileAnalytics } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { userStorage } from "@/lib/storage";
 import { companyStorage } from "@/lib/companyStorage";
+import { DownloadReportButton } from "@/components/analytics/DownloadReportButton";
+import type { ReportProfile, ReportInsights } from "@/components/analytics/AnalyticsReportDocument";
+
 
 import {
   BarChart,
