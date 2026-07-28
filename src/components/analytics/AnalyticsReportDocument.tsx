@@ -325,7 +325,7 @@ export function AnalyticsReportDocument({ data }: { data: ReportData }) {
             <Card accent={C.pink}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ fontSize: 14, fontWeight: 800 }}>{label(p.platform)}</div>
-                <div style={{ color: C.muted }}>@{p.username}</div>
+                <div style={{ color: C.muted }}>@{handle(p.username)}</div>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
                 <Kv k={followersLabel} v={num(p.followers)} color={C.violet} />
