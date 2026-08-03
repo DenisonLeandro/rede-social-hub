@@ -81,7 +81,14 @@ async function computeScheduledAt(sb: SB, post: any, plan: any): Promise<string>
   const rank = Math.max(0, (sameDay ?? []).findIndex((r: { id: string }) => r.id === post.id));
   const hour = hours[rank % hours.length] + Math.floor(rank / hours.length); // desloca 1h se estourar
 
-  return zonedToUtc(post.post_date, Math.min(23, hour), 0, tz).toISOString();
+  const computed = zonedToUtc(post.post_date, Math.min(23, hour), 0, tz);
+
+  // O Post for Me rejeita scheduled_at no passado. Se a data do plano já passou
+  // (ex.: plano interpretado com ano errado ou aprovação tardia), publica logo.
+  const floor = new Date(Date.now() + 10 * 60_000);
+  if (computed.getTime() <= floor.getTime()) return floor.toISOString();
+
+  return computed.toISOString();
 }
 
 // ─── Chamada interna ao Post for Me ─────────────────────────────────
