@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: SYSTEM },
+          { role: "system", content: SYSTEM.replace("{{TODAY}}", new Date().toISOString().slice(0, 10)) },
           { role: "user", content: text.slice(0, 20000) },
         ],
         temperature: 0.1,
@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
       if (Array.isArray(list)) {
         rows = list
           .map((r: Record<string, unknown>) => ({
-            date: typeof r.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : null,
+            date: normalizeYear(typeof r.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : null),
             theme: typeof r.theme === "string" ? r.theme.trim() : "",
             category: typeof r.category === "string" && r.category.trim() ? r.category.trim() : null,
           }))
