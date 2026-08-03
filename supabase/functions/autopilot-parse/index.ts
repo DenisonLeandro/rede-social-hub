@@ -31,6 +31,8 @@ interface Row {
 
 const SYSTEM = `Você extrai um plano de conteúdo de redes sociais de um texto colado (pode vir como tabela, lista, ou texto corrido, bagunçado, copiado de ChatGPT/Excel/Word).
 
+HOJE É {{TODAY}}. Quando o texto não trouxer o ano, use o ano que faz a data cair em HOJE ou no futuro — nunca no passado.
+
 Para CADA post identificado, produza:
 - "date": a data no formato "YYYY-MM-DD". Interprete datas em português (dd/mm/aaaa é dia/mês/ano). Se a linha não tiver data, use null.
 - "theme": o tema/assunto do post (obrigatório, string curta).
@@ -41,6 +43,18 @@ Regras:
 - NÃO invente posts que não estão no texto. NÃO complete datas que faltam.
 - Ignore cabeçalhos de tabela ("Data", "Tema", "Categoria", "Dia da Semana") — não são posts.
 - Responda APENAS JSON válido, sem markdown: {"rows":[{"date":"YYYY-MM-DD"|null,"theme":"...","category":"..."|null}]}`;
+
+/** Corrige datas que caíram em um ano passado (LLM chuta o ano errado). */
+function normalizeYear(date: string | null): string | null {
+  if (!date) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (date >= today) return date;
+  const [y, rest] = [Number(date.slice(0, 4)), date.slice(4)];
+  const currentYear = new Date().getUTCFullYear();
+  if (y >= currentYear) return date; // passado recente do ano corrente: mantém
+  const shifted = `${currentYear}${rest}`;
+  return shifted >= today ? shifted : `${currentYear + 1}${rest}`;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
